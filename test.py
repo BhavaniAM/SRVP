@@ -25,7 +25,7 @@ from collections import defaultdict
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import helper
+import func as helper
 import data.base as data
 import module.srvp as srvp
 from metrics.ssim import ssim_loss

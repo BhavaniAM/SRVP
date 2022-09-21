@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import configargparse
 import os
 import random
 import torch
+import matplotlib.pyplot as plt  # :Bhavani
+import matplotlib.image as mpimg # :Bhavani
 
 import numpy as np
 import torch.nn.functional as F
@@ -31,7 +32,6 @@ import module.srvp as srvp
 from metrics.ssim import ssim_loss
 from metrics.lpips.loss import PerceptualLoss
 from metrics.fvd.score import fvd as fvd_score
-
 
 def _ssim_wrapper(sample, gt):
     """
@@ -156,12 +156,13 @@ def main(opt):
     ##################################################################################################################
     # -- Device handling (CPU, GPU)
     opt.train = False
-    if opt.device is None:
-        device = torch.device('cpu')
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(opt.device)
-        device = torch.device('cuda:0')
-        torch.cuda.set_device(0)
+    #if opt.device is None:
+    opt.device = torch.device('cpu') # :Bhavani
+    device = torch.device('cpu')   # :Bhavani
+    #else:
+     #   os.environ["CUDA_VISIBLE_DEVICES"] = str(opt.device)
+     #   device = torch.device('cuda:0')
+     #   torch.cuda.set_device(0)
     # Seed
     random.seed(opt.test_seed)
     np.random.seed(opt.test_seed)
@@ -169,14 +170,16 @@ def main(opt):
     # cuDNN
     assert torch.backends.cudnn.enabled
     # Load LPIPS model
-    lpips_model = PerceptualLoss(opt.lpips_dir)
-
+    lpips_model = PerceptualLoss(opt.lpips_dir) 
+    
     ##################################################################################################################
     # Load XP config
     ##################################################################################################################
     xp_config = helper.load_json(os.path.join(opt.xp_dir, 'config.json'))
-    nt_cond = opt.nt_cond if opt.nt_cond is not None else xp_config.nt_cond
+    nt_cond = opt.nt_cond if opt.nt_cond is not None else xp_config.nt_cond 
+    print("nt_cond line 178 = ", nt_cond) # :Bhavani
     nt_test = opt.nt_gen if opt.nt_gen is not None else xp_config.seq_len_test
+    print("nt_test (total_frames) line 180 = ", nt_test) # :Bhavani
     if opt.n_euler_steps is None:
         opt.n_euler_steps = xp_config.n_euler_steps
 
@@ -211,18 +214,30 @@ def main(opt):
     best_samples = defaultdict(list)
     worst_samples = defaultdict(list)
     results = defaultdict(list)
+    results_worst = defaultdict(list)
     cond = []
     cond_rec = []
     gt = []
+    # random samples = [[]] for n_samples = 1 :Bhavani
     random_samples = [[] for _ in range(min(5, opt.n_samples))]
     # Evaluation is done by batch
+    # test_loader has the testset :Bhavani
     for batch in tqdm(test_loader, ncols=0):
         # Data
         x = batch.to(device)
+        # x = 25 :Bhavani
+        # print("line 225 length of the testset? = ",len(x))  :Bhavani
+        # x (line 229) =  torch.Size([25, 16, 1, 64, 64]) :Bhavani
+        # x_cond (line 229) =  torch.Size([5, 16, 1, 64, 64]) :Bhavani
+        # x_target (line 229) =  torch.Size([20, 16, 1, 64, 64]) :Bhavani
+        # There are 25/5/20 frames in each video,16 such sequence of frames in each batch,1 channel (grayscale),64*64 is the frame size :Bhavani
         assert nt_test <= len(x)
         x = x[:nt_test]
+        # print("x (line 229) = ",x.shape) :Bhavani
         x_cond = x[:nt_cond]
+        # print("x_cond (line 229) = ",x_cond.shape) :Bhavani
         x_target = x[nt_cond:]
+        # print("x_target (line 229) = ",x_target.shape) :Bhavani
         cond.append(x_cond.cpu().mul(255).byte().permute(1, 0, 3, 4, 2))
         gt.append(x_target.cpu().mul(255).byte().permute(1, 0, 3, 4, 2))
 
@@ -232,11 +247,13 @@ def main(opt):
         metric_worst = {}
         sample_worst = {}
         # Encode conditional frames and extracts skip connections
+        # print("x_cond = ", x_cond.shape) # :Bhavani
         skip = model.encode(x_cond)[1] if model.skipco != 'none' else None
         # Generate opt.n_samples predictions
         for i in range(opt.n_samples):
             # Infer latent variables
             x_rec, y, _, w, _, _, _, _ = model(x_cond, nt_cond, dt=1 / xp_config.n_euler_steps)
+            # print("x_rec size (line 252) = ",x_rec.shape)  :Bhavani
             y_0 = y[-1]
             if i == 0:
                 cond_rec.append(x_rec.cpu().mul(255).byte().permute(1, 0, 3, 4, 2))
@@ -244,7 +261,48 @@ def main(opt):
             y_os = model.generate(y_0, [], nt_test - nt_cond + 1, dt=1 / opt.n_euler_steps)[0]
             y = y_os[1:].contiguous()  # Remove the first state which is the last inferred state
             x_pred = model.decode(w, y, skip).clamp(0, 1)
-
+            # print("x_pred size (line 259) = ", x_pred.shape)
+            # x_pred size (line 259) =  torch.Size([20, 16, 1, 64, 64]) :Bhavani
+            # There are 20 frames in each sequence,16 such sequences of frames in each batch,1 channel (grayscale),64*64 is the frame size :Bhavani
+            
+            
+            new_video_Bhavani = x_pred
+            frames_Bhavani = nt_test - nt_cond
+            batch_Bhavani = opt.batch_size
+            video_Bhavani = new_video_Bhavani.permute(1,0,2,3,4)
+            new_save_number = 1
+            for bhav in range(batch_Bhavani):
+                for frame_Bhav in range(frames_Bhavani):
+                    plt.imsave('/content/predicted/x_pred_image'+str(new_save_number)+'.png',video_Bhavani[bhav][frame_Bhav].numpy()[0],cmap='gray')
+                    new_save_number = new_save_number + 1
+                    #plt.imshow(video_Bhavani[bhav][frame_Bhav].numpy()[0])
+                    #plt.show()
+            
+            new_cond_Bhavani = x_rec
+            frames_Bhavani = nt_cond
+            batch_Bhavani = opt.batch_size
+            cond_Bhavani = new_cond_Bhavani.permute(1,0,2,3,4)
+            new_num = 1
+            for bhav in range(batch_Bhavani):
+                for frame_Bhav in range(frames_Bhavani):
+                    plt.imsave('/content/conditional/x_cond_image'+str(new_num)+'.png',cond_Bhavani[bhav][frame_Bhav].numpy()[0],cmap='gray')
+                    new_num = new_num + 1
+                    #plt.imshow(video_Bhavani[bhav][frame_Bhav].numpy()[0])
+                    #plt.show()
+                    
+            new_t_Bhavani = x_target
+            frames_Bhavani = nt_test - nt_cond
+            batch_Bhavani = opt.batch_size
+            t_Bhavani = new_t_Bhavani.permute(1,0,2,3,4)
+            new_e_number = 1
+            for bhav in range(batch_Bhavani):
+                for frame_Bhav in range(frames_Bhavani):
+                    plt.imsave('/content/target/x_target_image'+str(new_e_number)+'.png',t_Bhavani[bhav][frame_Bhav].numpy()[0],cmap='gray')
+                    new_e_number = new_e_number + 1
+                    #plt.imshow(video_Bhavani[bhav][frame_Bhav].numpy()[0])
+                    #plt.show()
+                    
+            
             # Metrics
             mse = torch.mean(F.mse_loss(x_pred, x_target, reduction='none'), dim=[3, 4])
             metrics_batch = {
@@ -280,6 +338,7 @@ def main(opt):
             best_samples[name].append(sample_best[name])
             worst_samples[name].append(sample_worst[name])
             results[name].append(metric_best[name])
+            results_worst[name].append(metric_worst[name])
 
     # Store best, worst and random samples
     samples = {f'random_{i + 1}': torch.cat(random_sample).numpy() for i, random_sample in enumerate(random_samples)}
@@ -288,6 +347,7 @@ def main(opt):
         samples[f'{name}_best'] = torch.cat(best_samples[name]).numpy()
         samples[f'{name}_worst'] = torch.cat(worst_samples[name]).numpy()
         results[name] = torch.cat(results[name]).numpy()
+        results_worst[name] = torch.cat(results_worst[name]).numpy()
 
     ##################################################################################################################
     # Compute FVD
@@ -314,7 +374,9 @@ def main(opt):
     ##################################################################################################################
     # Save samples
     ##################################################################################################################
+    # Saves the results of the metrics in results.npz (unzipped => lpips.npy, ssim.npy, psnr.npy) :Bhavani 
     np.savez_compressed(os.path.join(opt.xp_dir, 'results.npz'), **results)
+    np.savez_compressed(os.path.join(opt.xp_dir, 'results_worst.npz'), **results_worst)
     for name, res in samples.items():
         np.savez_compressed(os.path.join(opt.xp_dir, f'{name}.npz'), samples=res)
 

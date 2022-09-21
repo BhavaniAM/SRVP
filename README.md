@@ -63,38 +63,6 @@ and
 python preprocessing/kth/make_test_set.py --data_dir $DIR
 ```
 
-### Human3.6M
-
-This dataset can be downloaded at [http://vision.imar.ro/human3.6m/description.php](http://vision.imar.ro/human3.6m/description.php), after obtaining access from its owners.
-Videos for every subject are included in `.tgz` archives. Each of these archives should be extracted in the same folder.
-
-To preprocess the dataset in order to use it for training and testing, these videos should be processed using the following command:
-```bash
-python preprocessing/human/convert.py --data_dir $DIR
-```
-where `$DIR` is the directory where Human3.6M videos are saved.
-
-Finally, the testing set is created by choosing extracts from testing videos, with the following command:
-```bash
-python preprocessing/human/make_test_set.py --data_dir $DIR
-```
-
-All processed videos are saved in the same folder as the original dataset.
-
-### BAIR
-
-To download the dataset at a given path `$DIR`, execute the following command:
-```bash
-bash preprocessing/bair/download.sh $DIR
-```
-(see also [https://github.com/edenton/svg/blob/master/data/download_bair.sh](https://github.com/edenton/svg/blob/master/data/download_bair.sh) from the official implementation of [SVG](https://github.com/edenton/svg)).
-
-In order to respectively train and test a model on this dataset, the following command should be run:
-```bash
-python preprocessing/bair/convert.py --data_dir $DIR
-```
-
-
 ## Training
 
 In order to launch training on multiple GPUs, launch the following command:
@@ -118,14 +86,6 @@ Training parameters are given by the following options:
 - for KTH:
 ```
 --ny 50 --nz 50 --n_euler_steps 2 --res_gain 1.2 --archi vgg --skipco --nt_cond 10 --nt_inf 3 --obs_scale 0.2 --batch_size 100 --dataset kth --nc 1 --seq_len 20 --lr_scheduling_burnin 150000 --lr_scheduling_n_iter 50000 --val_interval 5000 --seq_len_test 30
-```
-- for Human3.6M:
-```
---ny 50 --nz 50 --n_euler_steps 2 --res_gain 1.2 --archi vgg --skipco --nt_cond 8 --nt_inf 3 --obs_scale 0.2 --batch_size 100 --dataset human --nc 3 --seq_len 16 --lr_scheduling_burnin 325000 --lr_scheduling_n_iter 25000 --val_interval 20000 --batch_size_test 8 --seq_len_test 53
-```
-- for BAIR:
-```
---ny 50 --nz 50 --n_euler_steps 2 --archi vgg --skipco --nt_cond 2 --nt_inf 2 --obs_scale 0.71 --batch_size 192 --dataset bair --nc 3 --seq_len 12 --lr_scheduling_burnin 1000000 --lr_scheduling_n_iter 500000
 ```
 
 Please also refer to the help message of `train.py`:
@@ -160,14 +120,6 @@ python test.py --data_dir $DATADIR --xp_dir $XPDIR --lpips_dir $LPIPSDIR --n_sam
 - for KTH:
 ```bash
 python test.py --data_dir $DATADIR --xp_dir $XPDIR --lpips_dir $LPIPSDIR --nt_gen 40
-```
-- for Human3.6M:
-```bash
-python test.py --data_dir $DATADIR --xp_dir $XPDIR --lpips_dir $LPIPSDIR --nt_gen 53
-```
-- for BAIR:
-```bash
-python test.py --data_dir $DATADIR --xp_dir $XPDIR --lpips_dir $LPIPSDIR --nt_gen 30
 ```
 Adding option `--fvd` additionally computes FVD.
 

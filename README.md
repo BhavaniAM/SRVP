@@ -2,6 +2,7 @@
 
 Official implementation of the paper *Stochastic Latent Residual Video Prediction* (Jean-Yves Franceschi,* Edouard Delasalles,* Mickael Chen, Sylvain Lamprier, Patrick Gallinari), accepted and presented at ICML 2020.
 
+This repository is forked from the original implementation present on GitHub. I have implemented changes to visualize results. I have fixed bugs in the code and also the version compatibility issues.
 
 ## [Article](http://proceedings.mlr.press/v119/franceschi20a.html)
 

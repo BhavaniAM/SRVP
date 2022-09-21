@@ -59,7 +59,7 @@ def train(forward_fn, optimizer, scaler, batch, device, opt):
     scaler : torch.cuda.amp.GradScaler
         Gradient scaler for PyTorch's mixed-precision training. Is None if this setting is disabled.
     batch : torch.*.Tensor
-        Tensor containing the bach of the optimization step with shape (length, batch, channels, width, height) and
+        Tensor containing the batch of the optimization step with shape (length, batch, channels, width, height) and
         float values lying in [0, 1].
     device : torch.device
         Device on which operations are performed.
@@ -86,9 +86,8 @@ def train(forward_fn, optimizer, scaler, batch, device, opt):
 
     # Forward (inference)
     x_, y, z, _, q_y_0_params, q_z_params, p_z_params, res = forward_fn(x, nt, dt=1 / opt.n_euler_steps)
-
     # Loss
-    # NLL
+    # NLL (negative log likelihood)
     nll = utils.neg_logprob(x_, x, scale=opt.obs_scale).sum()
     # y_0 KL
     q_y_0 = utils.make_normal_from_raw_params(q_y_0_params)
@@ -191,7 +190,7 @@ def evaluate(forward_fn, val_loader, device, opt):
 
 def main(opt):
     """
-    Trains SRVP and saved the resulting model.
+    Trains SRVP and saves the resulting model.
 
     Parameters
     ----------
@@ -274,6 +273,7 @@ def main(opt):
                                                         opt.nt_inf, opt.nh_inf, opt.nlayers_inf, opt.nh_res,
                                                         opt.nlayers_res, opt.archi)
     model.init(res_gain=opt.res_gain)
+    print("model = ", model)  # : Bhavani
     # Make the batch norms in the model synchronized in the distributed case
     if opt.n_gpu > 1:
         if opt.apex_amp:
@@ -287,10 +287,11 @@ def main(opt):
     # Optimizer
     ##################################################################################################################
     optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr)
+    print("parameters of the model = ", model.parameters()) # : Bhavani
     opt.n_iter = opt.lr_scheduling_burnin + opt.lr_scheduling_n_iter
     lr_sch_n_iter = opt.lr_scheduling_n_iter
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                     lr_lambda=lambda i: max(0, (lr_sch_n_iter - i) / lr_sch_n_iter))
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,lr_lambda=lambda i: max(0, (lr_sch_n_iter - i) / lr_sch_n_iter))
+    # sets the lr of the parameter group to the initial lr times the given lambda function : Bhavani
 
     ##################################################################################################################
     # Automatic Mixed Precision
@@ -298,6 +299,7 @@ def main(opt):
     scaler = None
     if opt.torch_amp:
         scaler = torch_amp.GradScaler()
+    # scales the gradients to a non zero value if they are too low (they'll be flushed to zero) and then sends it in the backward pass : Bhavani
     if opt.apex_amp:
         model, optimizer = apex_amp.initialize(model, optimizer, opt_level=opt.amp_opt_lvl,
                                                keep_batchnorm_fp32=opt.keep_batchnorm_fp32,
@@ -334,7 +336,7 @@ def main(opt):
                 sampler.set_epoch(opt.seed + itr)
             # -------- TRAIN --------
             for batch in train_loader:
-                # Stop when the given number of optimization steps have been done
+                # Stop when the given number of optimization steps are done
                 if itr >= opt.n_iter:
                     finished = True
                     status_code = 0
@@ -346,10 +348,12 @@ def main(opt):
                 # Allow PyTorch's mixed-precision computations if required while ensuring retrocompatibilty
                 with (torch_amp.autocast() if opt.torch_amp else nullcontext()):
                     loss, nll, kl_y_0, kl_z = train(forward_fn, optimizer, scaler, batch, device, opt)
+                # forward_fn is the model (initialized differently for the multi GPU case)  : Bhavani
 
                 # Learning rate scheduling
                 if itr >= opt.lr_scheduling_burnin:
                     lr_scheduler.step()
+                # parameter update : Bhavani
 
                 # Evaluation and model saving are performed on the process with local rank zero
                 if opt.local_rank == 0:
